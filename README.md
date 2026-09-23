@@ -1,4 +1,5 @@
 # NoneKnow
+<img width="1024" height="572" alt="image" src="https://github.com/user-attachments/assets/54608c3d-a10d-4374-8fd3-0e41a2ac1b5c" />
 
 **Secure self-destructing messages.**
 
