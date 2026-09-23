@@ -2,9 +2,9 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IMessage extends Document {
   cipher: string;
-  maxView: number;
+  maxView?: number;
   currentViewCount: number;
-  ttl: Date;
+  ttl?: Date;
   createdAt: Date;
 }
 
@@ -16,9 +16,7 @@ const MessageSchema = new Schema<IMessage>(
     },
     maxView: {
       type: Number,
-      required: [true, 'Max view count is required'],
       min: [1, 'Max view count must be at least 1'],
-      default: 1,
     },
     currentViewCount: {
       type: Number,
@@ -27,7 +25,6 @@ const MessageSchema = new Schema<IMessage>(
     },
     ttl: {
       type: Date,
-      required: [true, 'TTL expiration date is required'],
     },
   },
   {
@@ -35,7 +32,13 @@ const MessageSchema = new Schema<IMessage>(
   },
 );
 
-MessageSchema.index({ ttl: 1 }, { expireAfterSeconds: 0 });
+MessageSchema.index(
+  { ttl: 1 },
+  {
+    expireAfterSeconds: 0,
+    partialFilterExpression: { ttl: { $exists: true } },
+  },
+);
 
 const Message: Model<IMessage> =
   mongoose.models.Message || mongoose.model<IMessage>('Message', MessageSchema);

@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState } from 'react';
+import { FiCopy, FiCheck } from 'react-icons/fi';
 import { trpc } from '@/utils/trpc';
 
 export default function ReadMessagePage({
@@ -58,42 +59,15 @@ export default function ReadMessagePage({
             Secret Message
           </h1>
 
-          {/* Copy Icon */}
           <button
             onClick={handleCopy}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-800"
             title={copied ? 'Copied!' : 'Copy message'}
           >
             {copied ? (
-              // Check icon
-              <svg
-                className="w-5 h-5 text-green-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+              <FiCheck className="w-5 h-5 text-green-600" />
             ) : (
-              // Copy icon
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.8}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
+              <FiCopy className="w-5 h-5" />
             )}
           </button>
         </div>
@@ -109,7 +83,11 @@ export default function ReadMessagePage({
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 text-sm text-gray-600 flex justify-between">
           <span>
             Views left:{' '}
-            <strong className="text-gray-900">{data?.viewsRemaining}</strong>
+            <strong className="text-gray-900">
+              {data?.viewsRemaining === null
+                ? 'Unlimited'
+                : data?.viewsRemaining}
+            </strong>
           </span>
           <span>
             Expires:{' '}
@@ -121,7 +99,7 @@ export default function ReadMessagePage({
                     hour: '2-digit',
                     minute: '2-digit',
                   })
-                : '—'}
+                : 'Never'}
             </strong>
           </span>
         </div>

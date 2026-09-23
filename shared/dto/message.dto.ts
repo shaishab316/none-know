@@ -1,7 +1,7 @@
-import z from 'zod';
+import { z } from 'zod';
 
 export const CreateMessageSchema = z.object({
-  message: z.string().min(1, 'Message cannot be empty'),
-  maxView: z.number().int().min(1).default(1),
-  ttl: z.iso.datetime('Invalid ISO date string'),
+  message: z.string().min(1),
+  maxView: z.number().min(1).max(100).optional(),
+  ttl: z.iso.datetime().optional(),
 });

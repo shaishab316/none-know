@@ -6,11 +6,13 @@ import { trpc } from '@/utils/trpc';
 
 export default function CreateMessagePage() {
   const [messageText, setMessageText] = useState('');
-  const [maxView, setMaxView] = useState(1);
+  const [maxView, setMaxView] = useState<number | ''>(1);
+  const [enableMaxView, setEnableMaxView] = useState(true);
   const [expireValue, setExpireValue] = useState(1);
   const [expireUnit, setExpireUnit] = useState<'minutes' | 'hours' | 'days'>(
     'hours',
   );
+  const [enableExpire, setEnableExpire] = useState(true);
   const [copied, setCopied] = useState(false);
 
   const createMutation = trpc.message.create.useMutation();
@@ -25,15 +27,25 @@ export default function CreateMessagePage() {
     e.preventDefault();
     if (!messageText.trim()) return;
 
-    const ttlDate = new Date(
-      Date.now() + getExpireMinutes() * 60 * 1000,
-    ).toISOString();
-
-    await createMutation.mutateAsync({
+    const payload: {
+      message: string;
+      maxView?: number;
+      ttl?: string;
+    } = {
       message: messageText.trim(),
-      maxView: Number(maxView),
-      ttl: ttlDate,
-    });
+    };
+
+    if (enableMaxView && maxView !== '') {
+      payload.maxView = Number(maxView);
+    }
+
+    if (enableExpire) {
+      payload.ttl = new Date(
+        Date.now() + getExpireMinutes() * 60 * 1000,
+      ).toISOString();
+    }
+
+    await createMutation.mutateAsync(payload);
   };
 
   const generatedLink = createMutation.data
@@ -50,8 +62,10 @@ export default function CreateMessagePage() {
   const resetForm = () => {
     setMessageText('');
     setMaxView(1);
+    setEnableMaxView(true);
     setExpireValue(1);
     setExpireUnit('hours');
+    setEnableExpire(true);
     createMutation.reset();
   };
 
@@ -86,51 +100,85 @@ export default function CreateMessagePage() {
                 />
               </div>
 
-              {/* Max Views */}
+              {/* Max Views - Optional */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Maximum views
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={maxView}
-                  onChange={(e) => setMaxView(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Message will be deleted after this many views
-                </p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium text-gray-700">
+                    Maximum views
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableMaxView}
+                      onChange={(e) => setEnableMaxView(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    Enable
+                  </label>
+                </div>
+
+                {enableMaxView && (
+                  <>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={maxView}
+                      onChange={(e) =>
+                        setMaxView(
+                          e.target.value === '' ? '' : Number(e.target.value),
+                        )
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Message will be deleted after this many views
+                    </p>
+                  </>
+                )}
               </div>
 
-              {/* Expiration */}
+              {/* Expiration - Optional */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Expires after
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    value={expireValue}
-                    onChange={(e) => setExpireValue(Number(e.target.value))}
-                    className="w-24 px-3 py-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <select
-                    value={expireUnit}
-                    onChange={(e) =>
-                      setExpireUnit(
-                        e.target.value as 'minutes' | 'hours' | 'days',
-                      )
-                    }
-                    className="flex-1 px-3 py-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                  >
-                    <option value="minutes">Minutes</option>
-                    <option value="hours">Hours</option>
-                    <option value="days">Days</option>
-                  </select>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium text-gray-700">
+                    Expires after
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableExpire}
+                      onChange={(e) => setEnableExpire(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    Enable
+                  </label>
                 </div>
+
+                {enableExpire && (
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={expireValue}
+                      onChange={(e) => setExpireValue(Number(e.target.value))}
+                      className="w-24 px-3 py-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <select
+                      value={expireUnit}
+                      onChange={(e) =>
+                        setExpireUnit(
+                          e.target.value as 'minutes' | 'hours' | 'days',
+                        )
+                      }
+                      className="flex-1 px-3 py-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    >
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Submit */}
@@ -188,18 +236,20 @@ export default function CreateMessagePage() {
                 <div className="flex justify-between">
                   <span>Max views</span>
                   <span className="font-medium text-gray-900">
-                    {createMutation.data.maxView}
+                    {createMutation.data.maxView ?? 'Unlimited'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Expires at</span>
                   <span className="font-medium text-gray-900">
-                    {new Date(createMutation.data.ttl).toLocaleString([], {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {createMutation.data.ttl
+                      ? new Date(createMutation.data.ttl).toLocaleString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Never'}
                   </span>
                 </div>
               </div>

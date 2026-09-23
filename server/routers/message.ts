@@ -14,13 +14,13 @@ export const messageRouter = router({
       const decryptionKey = randomBytes(32).toString('hex');
       const cipherBuffer = encrypt(input.message, decryptionKey);
       const cipherBase64 = cipherBuffer.toString('base64');
-      const ttlDate = new Date(input.ttl);
 
       await connectDB();
+
       const message = await Message.create({
         cipher: cipherBase64,
         maxView: input.maxView,
-        ttl: ttlDate,
+        ttl: input.ttl ? new Date(input.ttl) : undefined,
       });
 
       return {
@@ -53,7 +53,7 @@ export const messageRouter = router({
 
       if (
         (message.ttl && new Date() > new Date(message.ttl)) ||
-        message.currentViewCount >= message.maxView
+        (message.maxView && message.currentViewCount >= message.maxView)
       ) {
         await Message.findByIdAndDelete(id);
         throw new TRPCError({
@@ -77,11 +77,11 @@ export const messageRouter = router({
       const updatedMessage = await Message.findByIdAndUpdate(
         id,
         { $inc: { currentViewCount: 1 } },
-        { new: true },
+        { returnDocument: 'after' },
       );
 
       if (
-        updatedMessage &&
+        updatedMessage?.maxView &&
         updatedMessage.currentViewCount >= updatedMessage.maxView
       ) {
         await Message.findByIdAndDelete(id);
@@ -89,10 +89,12 @@ export const messageRouter = router({
 
       return {
         message: decryptedMessage,
-        viewsRemaining: Math.max(
-          0,
-          message.maxView - (updatedMessage?.currentViewCount ?? 1),
-        ),
+        viewsRemaining: message.maxView
+          ? Math.max(
+              0,
+              message.maxView - (updatedMessage?.currentViewCount ?? 1),
+            )
+          : null,
         ttl: message.ttl,
       };
     }),
