@@ -1,33 +1,78 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useEffect, useState, useSyncExternalStore } from 'react';
 import { FiCopy, FiCheck } from 'react-icons/fi';
 import { trpc } from '@/utils/trpc';
+import { decryptFromSharing } from '@/lib/crypto-client';
+
+// The key is read from the hash fragment, which browsers never send to the
+// server — so the server cannot decrypt the cipher text it stores.
+function subscribeToHash(onChange: () => void) {
+  window.addEventListener('hashchange', onChange);
+  return () => window.removeEventListener('hashchange', onChange);
+}
+
+function getHashKey(): string {
+  return window.location.hash.replace(/^#/, '');
+}
+
+function getServerHashKey(): null {
+  return null;
+}
 
 export default function ReadMessagePage({
   params,
 }: {
-  params: Promise<{ id: string; key: string }>;
+  params: Promise<{ id: string }>;
 }) {
-  const { id, key } = use(params);
+  const { id } = use(params);
+
+  const key = useSyncExternalStore(
+    subscribeToHash,
+    getHashKey,
+    getServerHashKey,
+  );
+
+  const [message, setMessage] = useState<string | null>(null);
+  const [decryptFailed, setDecryptFailed] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading, error } = trpc.message.getAndBurn.useQuery(
-    { id, key },
+    { id },
     {
+      enabled: Boolean(key),
       refetchOnWindowFocus: false,
       retry: false,
     },
   );
 
+  // Decrypt locally once the cipher text arrives.
+  useEffect(() => {
+    if (!data || !key) return;
+
+    let cancelled = false;
+
+    decryptFromSharing(data.cipher, key)
+      .then((text) => {
+        if (!cancelled) setMessage(text);
+      })
+      .catch(() => {
+        if (!cancelled) setDecryptFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data, key]);
+
   const handleCopy = () => {
-    if (!data?.message) return;
-    navigator.clipboard.writeText(data.message);
+    if (!message) return;
+    navigator.clipboard.writeText(message);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (isLoading) {
+  if (key === null || (Boolean(key) && isLoading)) {
     return (
       <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <p className="text-gray-500 text-sm">Loading message…</p>
@@ -35,17 +80,44 @@ export default function ReadMessagePage({
     );
   }
 
-  if (error) {
+  if (!key) {
     return (
       <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl p-8 text-center">
           <h1 className="text-lg font-semibold text-gray-900 mb-2">
-            Message not available
+            Could not decrypt message
           </h1>
           <p className="text-sm text-gray-500">
-            It may have expired or already been viewed.
+            The link is missing its decryption key.
           </p>
         </div>
+      </main>
+    );
+  }
+
+  if (decryptFailed || error) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl p-8 text-center">
+          <h1 className="text-lg font-semibold text-gray-900 mb-2">
+            {decryptFailed
+              ? 'Could not decrypt message'
+              : 'Message not available'}
+          </h1>
+          <p className="text-sm text-gray-500">
+            {decryptFailed
+              ? 'The decryption key in this link is invalid.'
+              : 'It may have expired or already been viewed.'}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!message) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <p className="text-gray-500 text-sm">Decrypting…</p>
       </main>
     );
   }
@@ -75,7 +147,7 @@ export default function ReadMessagePage({
         {/* Message */}
         <div className="px-6 py-6">
           <div className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-            {data?.message}
+            {message}
           </div>
         </div>
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { FiCopy, FiCheck } from 'react-icons/fi';
 import { trpc } from '@/utils/trpc';
+import { encryptForSharing } from '@/lib/crypto-client';
 
 export default function CreateMessagePage() {
   const [messageText, setMessageText] = useState('');
@@ -14,6 +15,8 @@ export default function CreateMessagePage() {
   );
   const [enableExpire, setEnableExpire] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [decryptionKey, setDecryptionKey] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const createMutation = trpc.message.create.useMutation();
 
@@ -27,29 +30,41 @@ export default function CreateMessagePage() {
     e.preventDefault();
     if (!messageText.trim()) return;
 
-    const payload: {
-      message: string;
-      maxView?: number;
-      ttl?: string;
-    } = {
-      message: messageText.trim(),
-    };
+    setErrorMessage('');
 
-    if (enableMaxView && maxView !== '') {
-      payload.maxView = Number(maxView);
+    try {
+      // Encrypt in the browser. Only the cipher text is sent to the server and
+      // the key stays here, to be carried by the link's hash fragment.
+      const { cipher, key } = await encryptForSharing(messageText.trim());
+
+      const payload: {
+        cipher: string;
+        maxView?: number;
+        ttl?: string;
+      } = { cipher };
+
+      if (enableMaxView && maxView !== '') {
+        payload.maxView = Number(maxView);
+      }
+
+      if (enableExpire) {
+        payload.ttl = new Date(
+          Date.now() + getExpireMinutes() * 60 * 1000,
+        ).toISOString();
+      }
+
+      await createMutation.mutateAsync(payload);
+      setDecryptionKey(key);
+    } catch {
+      setErrorMessage(
+        'Could not create the link. Your browser may not support client-side encryption.',
+      );
     }
-
-    if (enableExpire) {
-      payload.ttl = new Date(
-        Date.now() + getExpireMinutes() * 60 * 1000,
-      ).toISOString();
-    }
-
-    await createMutation.mutateAsync(payload);
   };
 
+  // The key lives in the hash fragment so it is never sent to the server.
   const generatedLink = createMutation.data
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/read/${createMutation.data._id}/${createMutation.data.key}`
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/read/${createMutation.data._id}#${decryptionKey}`
     : '';
 
   const handleCopy = () => {
@@ -66,6 +81,8 @@ export default function CreateMessagePage() {
     setExpireValue(1);
     setExpireUnit('hours');
     setEnableExpire(true);
+    setDecryptionKey('');
+    setErrorMessage('');
     createMutation.reset();
   };
 
@@ -181,6 +198,10 @@ export default function CreateMessagePage() {
                 )}
               </div>
 
+              {errorMessage && (
+                <p className="text-sm text-red-600">{errorMessage}</p>
+              )}
+
               {/* Submit */}
               <button
                 type="submit"
@@ -202,6 +223,18 @@ export default function CreateMessagePage() {
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
                   Share this link. It will disappear after the limit is reached.
+                </p>
+                <p className="text-xs text-gray-400 mt-2">
+                  The decryption key is generated in your browser and never
+                  leaves it — the server only stores cipher text.
+                </p>
+                <p className="text-xs text-gray-400 mt-2">
+                  The decryption key is generated in your browser and never
+                  leaves it — the server only stores cipher text.
+                </p>
+                <p className="text-xs text-gray-400 mt-2">
+                  The key was generated in your browser. Anyone with this link
+                  can read the message, so share it only with the recipient.
                 </p>
               </div>
 

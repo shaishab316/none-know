@@ -1,31 +1,31 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { randomBytes } from 'crypto';
 import { router, publicProcedure } from '@/server/trpc';
 import { CreateMessageSchema } from '@/shared/dto/message.dto';
 import { connectDB } from '@/lib/db';
-import { encrypt, decrypt } from '@/lib/crypto';
 import Message from '@/models/Message';
 
+/**
+ * Zero-knowledge message router.
+ *
+ * Clients encrypt in the browser and hand over cipher text only. The server
+ * never sees the plaintext or the decryption key, so it can store and burn
+ * messages without ever being able to read them.
+ */
 export const messageRouter = router({
   create: publicProcedure
     .input(CreateMessageSchema)
     .mutation(async ({ input }) => {
-      const decryptionKey = randomBytes(32).toString('hex');
-      const cipherBuffer = encrypt(input.message, decryptionKey);
-      const cipherBase64 = cipherBuffer.toString('base64');
-
       await connectDB();
 
       const message = await Message.create({
-        cipher: cipherBase64,
+        cipher: input.cipher,
         maxView: input.maxView,
         ttl: input.ttl ? new Date(input.ttl) : undefined,
       });
 
       return {
         _id: message._id.toString(),
-        key: decryptionKey,
         maxView: message.maxView,
         ttl: message.ttl,
       };
@@ -35,11 +35,10 @@ export const messageRouter = router({
     .input(
       z.object({
         id: z.string(),
-        key: z.string(),
       }),
     )
     .query(async ({ input }) => {
-      const { id, key } = input;
+      const { id } = input;
 
       await connectDB();
       const message = await Message.findById(id);
@@ -62,18 +61,6 @@ export const messageRouter = router({
         });
       }
 
-      let decryptedMessage: string;
-      try {
-        const cipherBuffer = Buffer.from(message.cipher, 'base64');
-        const decryptedBuffer = decrypt(cipherBuffer, key);
-        decryptedMessage = decryptedBuffer.toString('utf8');
-      } catch {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Invalid decryption key',
-        });
-      }
-
       const updatedMessage = await Message.findByIdAndUpdate(
         id,
         { $inc: { currentViewCount: 1 } },
@@ -88,7 +75,7 @@ export const messageRouter = router({
       }
 
       return {
-        message: decryptedMessage,
+        cipher: message.cipher,
         viewsRemaining: message.maxView
           ? Math.max(
               0,
