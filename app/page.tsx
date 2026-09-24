@@ -1,23 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { FiCopy, FiCheck } from 'react-icons/fi';
-import { Turnstile } from '@marsidev/react-turnstile'; // 1. Import Turnstile
+import { FiCopy, FiCheck, FiShield } from 'react-icons/fi';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { trpc } from '@/utils/trpc';
 import { encryptForSharing } from '@/lib/crypto-client';
+import Link from 'next/link';
 
 export default function CreateMessagePage() {
   const [messageText, setMessageText] = useState('');
   const [maxView, setMaxView] = useState<number | ''>(1);
   const [enableMaxView, setEnableMaxView] = useState(true);
   const [expireValue, setExpireValue] = useState(1);
-  const [expireUnit, setExpireUnit] = useState<'minutes' | 'hours' | 'days'>('hours');
+  const [expireUnit, setExpireUnit] = useState<'minutes' | 'hours' | 'days'>(
+    'hours',
+  );
   const [enableExpire, setEnableExpire] = useState(true);
   const [copied, setCopied] = useState(false);
   const [decryptionKey, setDecryptionKey] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // 2. Add CAPTCHA token state
   const [captchaToken, setCaptchaToken] = useState('');
 
   const createMutation = trpc.message.create.useMutation();
@@ -32,7 +34,6 @@ export default function CreateMessagePage() {
     e.preventDefault();
     if (!messageText.trim()) return;
 
-    // 3. Block submit if CAPTCHA isn't completed
     if (!captchaToken) {
       setErrorMessage('Please complete the CAPTCHA check.');
       return;
@@ -43,13 +44,12 @@ export default function CreateMessagePage() {
     try {
       const { cipher, key } = await encryptForSharing(messageText.trim());
 
-      // 4. Attach captchaToken to payload
       const payload: {
         cipher: string;
         captchaToken: string;
         maxView?: number;
         ttl?: string;
-      } = { 
+      } = {
         cipher,
         captchaToken,
       };
@@ -93,7 +93,7 @@ export default function CreateMessagePage() {
     setEnableExpire(true);
     setDecryptionKey('');
     setErrorMessage('');
-    setCaptchaToken(''); // Reset token
+    setCaptchaToken('');
     createMutation.reset();
   };
 
@@ -205,10 +205,9 @@ export default function CreateMessagePage() {
                 )}
               </div>
 
-              {/* 5. CAPTCHA Widget Widget */}
               <div className="flex justify-center my-4">
                 <Turnstile
-                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY as string}
                   onSuccess={(token) => setCaptchaToken(token)}
                   onExpire={() => setCaptchaToken('')}
                 />
@@ -218,14 +217,27 @@ export default function CreateMessagePage() {
                 <p className="text-sm text-red-600">{errorMessage}</p>
               )}
 
-              {/* 6. Disable button until CAPTCHA is complete */}
               <button
                 type="submit"
-                disabled={createMutation.isPending || !messageText.trim() || !captchaToken}
+                disabled={
+                  createMutation.isPending ||
+                  !messageText.trim() ||
+                  !captchaToken
+                }
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 rounded-md text-sm transition-colors"
               >
                 {createMutation.isPending ? 'Creating...' : 'Generate link'}
               </button>
+
+              <div className="bg-gray-50 border border-gray-100 rounded-md p-3 flex items-center gap-2.5 text-xs text-gray-500">
+                <FiShield className="w-4 h-4 text-blue-600 shrink-0" />
+                <Link
+                  href="/how-it-works"
+                  className="text-blue-600 hover:underline"
+                >
+                  Learn why it&apos;s safe
+                </Link>
+              </div>
             </form>
           ) : (
             <div className="space-y-5">

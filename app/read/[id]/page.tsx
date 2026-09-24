@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, useSyncExternalStore } from 'react';
 import { FiCopy, FiCheck } from 'react-icons/fi';
+import Link from 'next/link';
 import { trpc } from '@/utils/trpc';
 import { decryptFromSharing } from '@/lib/crypto-client';
 
@@ -87,9 +88,15 @@ export default function ReadMessagePage({
           <h1 className="text-lg font-semibold text-gray-900 mb-2">
             Could not decrypt message
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 mb-6">
             The link is missing its decryption key.
           </p>
+          <Link
+            href="/"
+            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-md text-sm transition-colors"
+          >
+            Create a secret message
+          </Link>
         </div>
       </main>
     );
@@ -104,11 +111,17 @@ export default function ReadMessagePage({
               ? 'Could not decrypt message'
               : 'Message not available'}
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 mb-6">
             {decryptFailed
               ? 'The decryption key in this link is invalid.'
               : 'It may have expired or already been viewed.'}
           </p>
+          <Link
+            href="/"
+            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-md text-sm transition-colors"
+          >
+            Create a secret message
+          </Link>
         </div>
       </main>
     );
@@ -174,6 +187,19 @@ export default function ReadMessagePage({
                 : 'Never'}
             </strong>
           </span>
+        </div>
+
+        {/* Simple Motivation Banner */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4">
+          <p className="text-xs text-gray-500">
+            Need to reply or send a private note?
+          </p>
+          <Link
+            href="/"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3.5 py-2 rounded-md transition-colors whitespace-nowrap"
+          >
+            Create message
+          </Link>
         </div>
       </div>
     </main>
