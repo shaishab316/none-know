@@ -8,4 +8,5 @@ export const CreateMessageSchema = z.object({
   cipher: z.string().min(1).max(1_000_000),
   maxView: z.number().min(1).max(100).optional(),
   ttl: z.iso.datetime().optional(),
+  captchaToken: z.string()
 });

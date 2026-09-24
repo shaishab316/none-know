@@ -4,6 +4,7 @@ import { router, publicProcedure } from '@/server/trpc';
 import { CreateMessageSchema } from '@/shared/dto/message.dto';
 import { connectDB } from '@/lib/db';
 import Message from '@/models/Message';
+import { verifyCaptcha } from '@/lib/captcha';
 
 /**
  * Zero-knowledge message router.
@@ -16,6 +17,14 @@ export const messageRouter = router({
   create: publicProcedure
     .input(CreateMessageSchema)
     .mutation(async ({ input }) => {
+      const isValid = await verifyCaptcha(input.captchaToken);
+      if (!isValid) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid CAPTCHA token. Bot request blocked.',
+        });
+      }
+
       await connectDB();
 
       const message = await Message.create({

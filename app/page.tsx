@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { FiCopy, FiCheck } from 'react-icons/fi';
+import { Turnstile } from '@marsidev/react-turnstile'; // 1. Import Turnstile
 import { trpc } from '@/utils/trpc';
 import { encryptForSharing } from '@/lib/crypto-client';
 
@@ -10,13 +11,14 @@ export default function CreateMessagePage() {
   const [maxView, setMaxView] = useState<number | ''>(1);
   const [enableMaxView, setEnableMaxView] = useState(true);
   const [expireValue, setExpireValue] = useState(1);
-  const [expireUnit, setExpireUnit] = useState<'minutes' | 'hours' | 'days'>(
-    'hours',
-  );
+  const [expireUnit, setExpireUnit] = useState<'minutes' | 'hours' | 'days'>('hours');
   const [enableExpire, setEnableExpire] = useState(true);
   const [copied, setCopied] = useState(false);
   const [decryptionKey, setDecryptionKey] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // 2. Add CAPTCHA token state
+  const [captchaToken, setCaptchaToken] = useState('');
 
   const createMutation = trpc.message.create.useMutation();
 
@@ -30,18 +32,27 @@ export default function CreateMessagePage() {
     e.preventDefault();
     if (!messageText.trim()) return;
 
+    // 3. Block submit if CAPTCHA isn't completed
+    if (!captchaToken) {
+      setErrorMessage('Please complete the CAPTCHA check.');
+      return;
+    }
+
     setErrorMessage('');
 
     try {
-      // Encrypt in the browser. Only the cipher text is sent to the server and
-      // the key stays here, to be carried by the link's hash fragment.
       const { cipher, key } = await encryptForSharing(messageText.trim());
 
+      // 4. Attach captchaToken to payload
       const payload: {
         cipher: string;
+        captchaToken: string;
         maxView?: number;
         ttl?: string;
-      } = { cipher };
+      } = { 
+        cipher,
+        captchaToken,
+      };
 
       if (enableMaxView && maxView !== '') {
         payload.maxView = Number(maxView);
@@ -57,12 +68,11 @@ export default function CreateMessagePage() {
       setDecryptionKey(key);
     } catch {
       setErrorMessage(
-        'Could not create the link. Your browser may not support client-side encryption.',
+        'Could not create the link. Your browser may not support client-side encryption or CAPTCHA failed.',
       );
     }
   };
 
-  // The key lives in the hash fragment so it is never sent to the server.
   const generatedLink = createMutation.data
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/read/${createMutation.data._id}#${decryptionKey}`
     : '';
@@ -83,13 +93,13 @@ export default function CreateMessagePage() {
     setEnableExpire(true);
     setDecryptionKey('');
     setErrorMessage('');
+    setCaptchaToken(''); // Reset token
     createMutation.reset();
   };
 
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-lg border border-gray-200 shadow-sm">
-        {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100">
           <h1 className="text-lg font-semibold text-gray-900">
             Create secure message
@@ -102,7 +112,6 @@ export default function CreateMessagePage() {
         <div className="p-6">
           {!createMutation.data ? (
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Message */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Message
@@ -117,7 +126,6 @@ export default function CreateMessagePage() {
                 />
               </div>
 
-              {/* Max Views - Optional */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-sm font-medium text-gray-700">
@@ -155,7 +163,6 @@ export default function CreateMessagePage() {
                 )}
               </div>
 
-              {/* Expiration - Optional */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-sm font-medium text-gray-700">
@@ -198,21 +205,29 @@ export default function CreateMessagePage() {
                 )}
               </div>
 
+              {/* 5. CAPTCHA Widget Widget */}
+              <div className="flex justify-center my-4">
+                <Turnstile
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
+                  onSuccess={(token) => setCaptchaToken(token)}
+                  onExpire={() => setCaptchaToken('')}
+                />
+              </div>
+
               {errorMessage && (
                 <p className="text-sm text-red-600">{errorMessage}</p>
               )}
 
-              {/* Submit */}
+              {/* 6. Disable button until CAPTCHA is complete */}
               <button
                 type="submit"
-                disabled={createMutation.isPending || !messageText.trim()}
+                disabled={createMutation.isPending || !messageText.trim() || !captchaToken}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 rounded-md text-sm transition-colors"
               >
                 {createMutation.isPending ? 'Creating...' : 'Generate link'}
               </button>
             </form>
           ) : (
-            /* Success */
             <div className="space-y-5">
               <div className="text-center py-2">
                 <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-green-100 text-green-600 mb-3">
@@ -225,20 +240,11 @@ export default function CreateMessagePage() {
                   Share this link. It will disappear after the limit is reached.
                 </p>
                 <p className="text-xs text-gray-400 mt-2">
-                  The decryption key is generated in your browser and never
-                  leaves it — the server only stores cipher text.
-                </p>
-                <p className="text-xs text-gray-400 mt-2">
-                  The decryption key is generated in your browser and never
-                  leaves it — the server only stores cipher text.
-                </p>
-                <p className="text-xs text-gray-400 mt-2">
                   The key was generated in your browser. Anyone with this link
                   can read the message, so share it only with the recipient.
                 </p>
               </div>
 
-              {/* Link + Copy Icon */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Secure link
@@ -264,7 +270,6 @@ export default function CreateMessagePage() {
                 </div>
               </div>
 
-              {/* Info */}
               <div className="bg-gray-50 rounded-md px-4 py-3 text-sm text-gray-600 space-y-1">
                 <div className="flex justify-between">
                   <span>Max views</span>
